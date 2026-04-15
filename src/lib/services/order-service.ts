@@ -1,6 +1,132 @@
 import { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { publicOrderSchema } from "@/lib/validators/order";
+import { adminCreateOrderSchema, publicOrderSchema } from "@/lib/validators/order";
+
+function buildOrderNumber() {
+  return `OMS-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 9999)
+    .toString()
+    .padStart(4, "0")}`;
+}
+
+type CreateOrderInput = {
+  source: string;
+  customer: { name: string; email?: string; phone: string };
+  address: { line1: string; line2?: string; postcode: string; city: string; state: string; country: string };
+  paymentMethod: "cod" | "bank_transfer" | "foc";
+  shippingMethod: "jnt" | "spx" | "self_pickup";
+  items: Array<{ productId: string; qty: number; unitPrice: number }>;
+  notes?: string;
+  privateNote?: string;
+  awbNote?: string;
+  sellingPrice?: number;
+};
+
+async function createOrder(payload: CreateOrderInput) {
+  const customer = await prisma.customer.upsert({
+    where: { phone: payload.customer.phone },
+    update: { name: payload.customer.name, email: payload.customer.email },
+    create: { name: payload.customer.name, email: payload.customer.email, phone: payload.customer.phone },
+  });
+
+  const matchingAddress = await prisma.address.findFirst({
+    where: {
+      customerId: customer.id,
+      line1: payload.address.line1,
+      postcode: payload.address.postcode,
+      city: payload.address.city,
+      state: payload.address.state,
+      country: payload.address.country,
+    },
+  });
+
+  const address =
+    matchingAddress ??
+    (await prisma.address.create({
+      data: { customerId: customer.id, ...payload.address },
+    }));
+
+  const productIds = payload.items.map((item) => item.productId);
+  const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
+  const productMap = new Map(products.map((product) => [product.id, product]));
+
+  for (const item of payload.items) {
+    const product = productMap.get(item.productId);
+    if (!product) {
+      throw new Error(`Product ${item.productId} not found.`);
+    }
+    if (product.stock < item.qty) {
+      throw new Error(`Insufficient stock for ${product.name}.`);
+    }
+  }
+
+  const subtotal = payload.items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
+  const shippingFee = payload.shippingMethod === "self_pickup" ? 0 : 10;
+  const total = payload.sellingPrice ?? subtotal + shippingFee;
+  const orderNo = buildOrderNumber();
+
+  const order = await prisma.$transaction(async (tx) => {
+    for (const item of payload.items) {
+      const product = productMap.get(item.productId)!;
+      const updated = await tx.product.update({
+        where: { id: item.productId },
+        data: { stock: { decrement: item.qty } },
+      });
+      await tx.stockLog.create({
+        data: {
+          productId: item.productId,
+          qtyChange: -item.qty,
+          note: "Order deduction",
+          balance: updated.stock,
+          reference: orderNo,
+        },
+      });
+      if (product.stock - item.qty < product.minStock) {
+        await tx.stockLog.create({
+          data: {
+            productId: item.productId,
+            qtyChange: 0,
+            note: "Low stock alert threshold reached",
+            balance: updated.stock,
+            reference: orderNo,
+          },
+        });
+      }
+    }
+
+    return tx.order.create({
+      data: {
+        orderNo,
+        source: payload.source,
+        customerId: customer.id,
+        addressId: address.id,
+        paymentMethod: payload.paymentMethod,
+        shippingMethod: payload.shippingMethod,
+        status: OrderStatus.new,
+        subtotal,
+        shippingFee,
+        total,
+        notes: payload.notes,
+        privateNote: payload.privateNote,
+        awbNote: payload.awbNote,
+        items: {
+          create: payload.items.map((item) => {
+            const product = productMap.get(item.productId)!;
+            return {
+              productId: item.productId,
+              productName: product.name,
+              sku: product.sku,
+              qty: item.qty,
+              unitPrice: item.unitPrice,
+              totalPrice: item.qty * item.unitPrice,
+            };
+          }),
+        },
+      },
+    });
+  });
+
+  return order;
+}
 
 export async function createPublicOrder(payload: unknown) {
   const data = publicOrderSchema.parse(payload);
@@ -18,59 +144,12 @@ export async function createPublicOrder(payload: unknown) {
 
   if (duplicate) return { duplicate: true as const, orderNo: duplicate.orderNo };
 
-  const customer = await prisma.customer.upsert({
-    where: { phone: data.customer.phone },
-    update: { name: data.customer.name, email: data.customer.email },
-    create: { name: data.customer.name, email: data.customer.email, phone: data.customer.phone },
-  });
-
-  const address = await prisma.address.create({ data: { customerId: customer.id, ...data.address } });
-
-  const subtotal = data.items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0);
-  const shippingFee = data.shippingMethod === "self_pickup" ? 0 : 10;
-  const total = subtotal + shippingFee;
-  const orderNo = `OMS-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 9999).toString().padStart(4, "0")}`;
-
-  const order = await prisma.$transaction(async (tx) => {
-    for (const item of data.items) {
-      await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: item.qty } } });
-      await tx.stockLog.create({
-        data: {
-          productId: item.productId,
-          qtyChange: -item.qty,
-          note: "Order deduction",
-          balance: 0,
-          reference: orderNo,
-        },
-      });
-    }
-
-    return tx.order.create({
-      data: {
-        orderNo,
-        source: data.source,
-        customerId: customer.id,
-        addressId: address.id,
-        paymentMethod: data.paymentMethod,
-        shippingMethod: data.shippingMethod,
-        status: OrderStatus.new,
-        subtotal,
-        shippingFee,
-        total,
-        notes: data.notes,
-        items: {
-          create: data.items.map((item) => ({
-            productId: item.productId,
-            productName: "Website Item",
-            sku: "N/A",
-            qty: item.qty,
-            unitPrice: item.unitPrice,
-            totalPrice: item.qty * item.unitPrice,
-          })),
-        },
-      },
-    });
-  });
-
+  const order = await createOrder(data);
   return { duplicate: false as const, orderNo: order.orderNo };
+}
+
+export async function createAdminOrder(payload: unknown) {
+  const data = adminCreateOrderSchema.parse(payload);
+  const order = await createOrder(data);
+  return { orderNo: order.orderNo, id: order.id };
 }
