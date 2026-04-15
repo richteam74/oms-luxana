@@ -32,7 +32,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: order }, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: error.flatten() }, { status: 400 });
+      const fieldErrors = error.flatten().fieldErrors;
+      const firstFieldError = Object.values(fieldErrors).flat().find(Boolean);
+      return NextResponse.json(
+        {
+          error: firstFieldError ?? "Validation failed. Please review the highlighted fields.",
+          details: fieldErrors,
+        },
+        { status: 400 },
+      );
     }
     const message = error instanceof Error ? error.message : "Unable to create order";
     return NextResponse.json({ error: message }, { status: 400 });
