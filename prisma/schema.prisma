@@ -1,0 +1,298 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  super_admin
+  admin
+  staff
+  seller
+}
+
+enum OrderStatus {
+  new
+  pending
+  in_transit
+  completed
+  returned
+  rejected
+}
+
+enum PaymentMethod {
+  cod
+  bank_transfer
+  foc
+}
+
+enum ShippingMethod {
+  jnt
+  spx
+  self_pickup
+}
+
+enum ShipmentStatus {
+  created
+  picked_up
+  in_transit
+  out_for_delivery
+  delivered
+  failed_delivery
+  returned
+  cancelled
+}
+
+enum CommissionStatus {
+  pending
+  approved
+  paid
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  phone        String?
+  passwordHash String
+  role         Role         @default(staff)
+  storeName    String?
+  isActive     Boolean      @default(true)
+  orders       Order[]      @relation("SellerOrders")
+  commissions  Commission[]
+  stockAdjustments StockAdjustment[]
+  orderNotesCreated OrderNote[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Customer {
+  id        String    @id @default(cuid())
+  name      String
+  email     String?
+  phone     String
+  orders    Order[]
+  addresses Address[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([phone])
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  line1      String
+  line2      String?
+  postcode   String
+  city       String
+  state      String
+  country    String   @default("Malaysia")
+  isDefault  Boolean  @default(false)
+  orders     Order[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Brand {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id          String           @id @default(cuid())
+  name        String
+  sku         String           @unique
+  brandId     String?
+  brand       Brand?           @relation(fields: [brandId], references: [id])
+  price       Decimal          @db.Decimal(12, 2)
+  cost        Decimal?         @db.Decimal(12, 2)
+  stock       Int              @default(0)
+  minStock    Int              @default(10)
+  category    String?
+  isActive    Boolean          @default(true)
+  variants    ProductVariant[]
+  orderItems  OrderItem[]
+  stockLogs   StockLog[]
+  bundleItems BundleItem[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([name])
+}
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name       String
+  sku        String   @unique
+  price      Decimal  @db.Decimal(12, 2)
+  stock      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Bundle {
+  id          String       @id @default(cuid())
+  name        String
+  sku         String       @unique
+  sellingPrice Decimal     @db.Decimal(12, 2)
+  items       BundleItem[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model BundleItem {
+  id        String   @id @default(cuid())
+  bundleId  String
+  productId String
+  qty       Int
+  bundle    Bundle   @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@unique([bundleId, productId])
+}
+
+model Order {
+  id            String         @id @default(cuid())
+  orderNo       String         @unique
+  source        String
+  customerId    String
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  addressId     String
+  address       Address        @relation(fields: [addressId], references: [id])
+  sellerId      String?
+  seller        User?          @relation("SellerOrders", fields: [sellerId], references: [id])
+  paymentMethod PaymentMethod
+  shippingMethod ShippingMethod
+  status        OrderStatus    @default(new)
+  subtotal      Decimal        @db.Decimal(12, 2)
+  shippingFee   Decimal        @db.Decimal(12, 2)
+  total         Decimal        @db.Decimal(12, 2)
+  notes         String?
+  privateNote   String?
+  awbNote       String?
+  items         OrderItem[]
+  notesLog      OrderNote[]
+  shipments     Shipment[]
+  commissions   Commission[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  productName  String
+  sku          String
+  qty          Int
+  unitPrice    Decimal  @db.Decimal(12, 2)
+  totalPrice   Decimal  @db.Decimal(12, 2)
+}
+
+model Shipment {
+  id             String               @id @default(cuid())
+  orderId         String
+  order           Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courierCode     String
+  trackingNo      String?              @unique
+  awbNo           String?
+  labelUrl        String?
+  shipmentStatus  ShipmentStatus       @default(created)
+  rawResponse     Json?
+  trackingLogs    ShipmentTrackingLog[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([courierCode, shipmentStatus])
+}
+
+model ShipmentTrackingLog {
+  id          String    @id @default(cuid())
+  shipmentId  String
+  shipment    Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  event       String
+  description String?
+  rawPayload  Json?
+  createdAt   DateTime  @default(now())
+}
+
+model CourierIntegration {
+  id          String   @id @default(cuid())
+  courierCode String   @unique
+  name        String
+  config      Json
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WebhookLog {
+  id          String   @id @default(cuid())
+  provider    String
+  headers     Json?
+  payload     Json
+  signature   String?
+  processed   Boolean  @default(false)
+  error       String?
+  createdAt   DateTime @default(now())
+}
+
+model StockAdjustment {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  qtyChange   Int
+  reason      String
+  adjustedById String
+  adjustedBy  User     @relation(fields: [adjustedById], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model StockLog {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  qtyChange  Int
+  balance    Int
+  note       String
+  reference  String?
+  createdAt  DateTime @default(now())
+}
+
+model Commission {
+  id         String           @id @default(cuid())
+  orderId    String
+  order      Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sellerId   String
+  seller     User             @relation(fields: [sellerId], references: [id])
+  amount     Decimal          @db.Decimal(12, 2)
+  status     CommissionStatus @default(pending)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+}
+
+model OrderNote {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  note       String
+  isPrivate  Boolean  @default(false)
+  isAwbNote  Boolean  @default(false)
+  createdById String
+  createdBy  User     @relation(fields: [createdById], references: [id])
+  createdAt  DateTime @default(now())
+}
