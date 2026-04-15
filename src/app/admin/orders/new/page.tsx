@@ -45,8 +45,8 @@ export default function CreateOrderPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption>("cod");
   const [shippingMethod, setShippingMethod] = useState<ShippingMethodOption>("jnt");
   const [notes, setNotes] = useState("");
-  const [privateNote, setPrivateNote] = useState(false);
-  const [awbNote, setAwbNote] = useState(false);
+  const [privateNote, setPrivateNote] = useState("");
+  const [awbNote, setAwbNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,6 +57,21 @@ export default function CreateOrderPage() {
   const shippingFee = shippingMethod === "self_pickup" ? 0 : 10;
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0), [items]);
   const [sellingPrice, setSellingPrice] = useState(0);
+
+  const normalizePhone = (value: string) => value.replace(/\s+/g, "").replace(/-/g, "");
+
+  const validateBeforeSubmit = () => {
+    if (!customer.name.trim()) return "Customer name is required.";
+    if (normalizePhone(customer.phone).length < 9) return "Customer phone must be at least 9 digits.";
+    if (customer.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return "Customer email is invalid.";
+    if (!address.line1.trim()) return "Address line 1 is required.";
+    if (!address.postcode.trim()) return "Postcode is required.";
+    if (!address.city.trim()) return "City is required.";
+    if (!address.state.trim()) return "State is required.";
+    if (items.length < 1) return "Please add at least one product.";
+    if (items.some((item) => item.qty < 1)) return "Each item quantity must be at least 1.";
+    return null;
+  };
 
   useEffect(() => {
     setSellingPrice(subtotal + shippingFee);
@@ -142,6 +157,7 @@ export default function CreateOrderPage() {
         country: result.data.address?.country ?? "Malaysia",
       });
       setFormSuccess("Customer found and prefilled.");
+      setFormError(null);
     } catch {
       setFormError("Network error while searching customer.");
     } finally {
@@ -154,8 +170,9 @@ export default function CreateOrderPage() {
     setFormError(null);
     setFormSuccess(null);
 
-    if (items.length < 1) {
-      setFormError("Please add at least one product.");
+    const validationError = validateBeforeSubmit();
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
 
@@ -177,8 +194,8 @@ export default function CreateOrderPage() {
             unitPrice: item.unitPrice,
           })),
           notes,
-          privateNote: privateNote ? notes : undefined,
-          awbNote: awbNote ? notes : undefined,
+          privateNote,
+          awbNote,
           sellingPrice,
         }),
       });
@@ -186,7 +203,13 @@ export default function CreateOrderPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        setFormError(result.error ?? "Failed to create order.");
+        const detailMessage =
+          result?.details && typeof result.details === "object"
+            ? Object.values(result.details as Record<string, string[]>)
+                .flat()
+                .find(Boolean)
+            : null;
+        setFormError(detailMessage ?? result.error ?? "Failed to create order.");
         return;
       }
 
@@ -243,7 +266,8 @@ export default function CreateOrderPage() {
                 selectedProductId={selectedProductId}
                 onSelectedProductIdChange={setSelectedProductId}
                 onAddProduct={addProduct}
-                onAddBundle={() => setBundleMessage("Bundle picker is not wired yet. TODO: map bundle schema into order items.")}
+                onAddBundle={() => setBundleMessage("Bundle order flow is not available yet. Please add products individually for now.")}
+                isBundleReady={false}
                 items={items}
                 onQtyChange={(productId, qty) => setItems((prev) => prev.map((row) => (row.productId === productId ? { ...row, qty } : row)))}
                 onRemoveItem={(productId) => setItems((prev) => prev.filter((row) => row.productId !== productId))}

@@ -24,6 +24,12 @@ export type OrderItemRow = {
   qty: number;
 };
 
+export type OrderNotesForm = {
+  notes: string;
+  privateNote: string;
+  awbNote: string;
+};
+
 export type ProductOption = {
   id: string;
   name: string;

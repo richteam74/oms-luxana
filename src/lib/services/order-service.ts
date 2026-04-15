@@ -8,6 +8,8 @@ function buildOrderNumber() {
     .padStart(4, "0")}`;
 }
 
+const normalizePhone = (phone: string) => phone.replace(/\s+/g, "").replace(/-/g, "");
+
 type CreateOrderInput = {
   source: string;
   customer: { name: string; email?: string; phone: string };
@@ -22,27 +24,44 @@ type CreateOrderInput = {
 };
 
 async function createOrder(payload: CreateOrderInput) {
+  const normalizedPhone = normalizePhone(payload.customer.phone);
+
   const customer = await prisma.customer.upsert({
-    where: { phone: payload.customer.phone },
-    update: { name: payload.customer.name, email: payload.customer.email },
-    create: { name: payload.customer.name, email: payload.customer.email, phone: payload.customer.phone },
+    where: { phone: normalizedPhone },
+    update: {
+      name: payload.customer.name.trim(),
+      email: payload.customer.email?.trim() || null,
+    },
+    create: {
+      name: payload.customer.name.trim(),
+      email: payload.customer.email?.trim() || null,
+      phone: normalizedPhone,
+    },
   });
 
   const matchingAddress = await prisma.address.findFirst({
     where: {
       customerId: customer.id,
-      line1: payload.address.line1,
+      line1: payload.address.line1.trim(),
       postcode: payload.address.postcode,
-      city: payload.address.city,
-      state: payload.address.state,
-      country: payload.address.country,
+      city: payload.address.city.trim(),
+      state: payload.address.state.trim(),
+      country: payload.address.country.trim(),
     },
   });
 
   const address =
     matchingAddress ??
     (await prisma.address.create({
-      data: { customerId: customer.id, ...payload.address },
+      data: {
+        customerId: customer.id,
+        line1: payload.address.line1.trim(),
+        line2: payload.address.line2?.trim() || null,
+        postcode: payload.address.postcode.trim(),
+        city: payload.address.city.trim(),
+        state: payload.address.state.trim(),
+        country: payload.address.country.trim(),
+      },
     }));
 
   const productIds = payload.items.map((item) => item.productId);
@@ -62,7 +81,19 @@ async function createOrder(payload: CreateOrderInput) {
   const subtotal = payload.items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
   const shippingFee = payload.shippingMethod === "self_pickup" ? 0 : 10;
   const total = payload.sellingPrice ?? subtotal + shippingFee;
-  const orderNo = buildOrderNumber();
+  let orderNo = buildOrderNumber();
+  let attempts = 0;
+
+  while (attempts < 5) {
+    const existing = await prisma.order.findUnique({ where: { orderNo } });
+    if (!existing) break;
+    attempts += 1;
+    orderNo = buildOrderNumber();
+  }
+
+  if (attempts >= 5) {
+    throw new Error("Unable to generate a unique order number. Please retry.");
+  }
 
   const order = await prisma.$transaction(async (tx) => {
     for (const item of payload.items) {
@@ -105,9 +136,9 @@ async function createOrder(payload: CreateOrderInput) {
         subtotal,
         shippingFee,
         total,
-        notes: payload.notes,
-        privateNote: payload.privateNote,
-        awbNote: payload.awbNote,
+        notes: payload.notes?.trim() || null,
+        privateNote: payload.privateNote?.trim() || null,
+        awbNote: payload.awbNote?.trim() || null,
         items: {
           create: payload.items.map((item) => {
             const product = productMap.get(item.productId)!;

@@ -73,13 +73,13 @@ model Customer {
   id        String    @id @default(cuid())
   name      String
   email     String?
-  phone     String
+  phone     String    @unique
   orders    Order[]
   addresses Address[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  @@index([phone])
+  @@index([name])
 }
 
 model Address {
@@ -121,6 +121,7 @@ model Product {
   variants    ProductVariant[]
   orderItems  OrderItem[]
   stockLogs   StockLog[]
+  stockAdjustments StockAdjustment[]
   bundleItems BundleItem[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt

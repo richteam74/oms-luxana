@@ -1,10 +1,10 @@
 type NotesCardProps = {
   notes: string;
-  privateNote: boolean;
-  awbNote: boolean;
+  privateNote: string;
+  awbNote: string;
   onNotesChange: (value: string) => void;
-  onPrivateNoteChange: (value: boolean) => void;
-  onAwbNoteChange: (value: boolean) => void;
+  onPrivateNoteChange: (value: string) => void;
+  onAwbNoteChange: (value: string) => void;
 };
 
 export function NotesCard({
@@ -27,20 +27,22 @@ export function NotesCard({
         onChange={(e) => onNotesChange(e.target.value)}
       />
       <div className="mt-3 space-y-2">
-        <label className="flex items-center gap-2 text-sm text-slate-300">
-          <input
-            id="private-note"
-            name="privateNote"
-            type="checkbox"
-            checked={privateNote}
-            onChange={(e) => onPrivateNoteChange(e.target.checked)}
-          />
-          Private note
-        </label>
-        <label className="flex items-center gap-2 text-sm text-slate-300">
-          <input id="awb-note" name="awbNote" type="checkbox" checked={awbNote} onChange={(e) => onAwbNoteChange(e.target.checked)} />
-          AWB note
-        </label>
+        <textarea
+          id="order-private-note"
+          name="privateNote"
+          className="input min-h-20"
+          placeholder="Private note (internal only)"
+          value={privateNote}
+          onChange={(e) => onPrivateNoteChange(e.target.value)}
+        />
+        <textarea
+          id="order-awb-note"
+          name="awbNote"
+          className="input min-h-20"
+          placeholder="AWB note (courier / label context)"
+          value={awbNote}
+          onChange={(e) => onAwbNoteChange(e.target.value)}
+        />
       </div>
     </section>
   );

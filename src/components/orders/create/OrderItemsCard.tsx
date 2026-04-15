@@ -7,6 +7,7 @@ type OrderItemsCardProps = {
   onSelectedProductIdChange: (value: string) => void;
   onAddProduct: () => void;
   onAddBundle: () => void;
+  isBundleReady?: boolean;
   items: OrderItemRow[];
   onQtyChange: (productId: string, qty: number) => void;
   onRemoveItem: (productId: string) => void;
@@ -18,6 +19,7 @@ export function OrderItemsCard({
   onSelectedProductIdChange,
   onAddProduct,
   onAddBundle,
+  isBundleReady = false,
   items,
   onQtyChange,
   onRemoveItem,
@@ -27,7 +29,13 @@ export function OrderItemsCard({
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-100">Order items</h2>
         <div className="flex gap-2">
-          <button type="button" className="rounded-lg border border-border px-3 py-2 text-xs" onClick={onAddBundle}>
+          <button
+            type="button"
+            className="rounded-lg border border-border px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={onAddBundle}
+            disabled={!isBundleReady}
+            title={isBundleReady ? "Add bundle" : "Bundle order is coming soon"}
+          >
             Add bundle
           </button>
           <button type="button" className="btn px-3 py-2 text-xs" onClick={onAddProduct}>

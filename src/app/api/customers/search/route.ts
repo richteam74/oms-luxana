@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+const normalizePhone = (value: string) => value.replace(/\s+/g, "").replace(/-/g, "");
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
@@ -9,9 +11,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing search query" }, { status: 400 });
   }
 
+  const normalizedQuery = normalizePhone(q);
+
   const customer = await prisma.customer.findFirst({
     where: {
-      OR: [{ phone: { contains: q } }, { orders: { some: { orderNo: { contains: q, mode: "insensitive" } } } }],
+      OR: [
+        { phone: { contains: normalizedQuery } },
+        { orders: { some: { orderNo: { contains: q, mode: "insensitive" } } } },
+      ],
     },
     include: {
       addresses: {
