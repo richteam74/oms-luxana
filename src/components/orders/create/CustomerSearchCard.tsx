@@ -7,6 +7,12 @@ type CustomerSearchCardProps = {
   isSearching: boolean;
   customer: CustomerForm;
   onCustomerChange: (field: keyof CustomerForm, value: string) => void;
+  errors?: {
+    customerId?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+  };
 };
 
 export function CustomerSearchCard({
@@ -16,10 +22,12 @@ export function CustomerSearchCard({
   isSearching,
   customer,
   onCustomerChange,
+  errors,
 }: CustomerSearchCardProps) {
   return (
     <section className="panel p-4">
       <h2 className="mb-3 text-sm font-semibold text-slate-100">Customer</h2>
+      {errors?.customerId ? <p className="mb-2 text-xs text-rose-300">{errors.customerId}</p> : null}
       <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto]">
         <input
           id="customer-search"
@@ -42,8 +50,8 @@ export function CustomerSearchCard({
           placeholder="Customer name"
           value={customer.name}
           onChange={(e) => onCustomerChange("name", e.target.value)}
-          required
         />
+        {errors?.name ? <p className="text-xs text-rose-300">{errors.name}</p> : null}
         <input
           id="customer-email"
           name="customerEmail"
@@ -52,6 +60,7 @@ export function CustomerSearchCard({
           value={customer.email}
           onChange={(e) => onCustomerChange("email", e.target.value)}
         />
+        {errors?.email ? <p className="text-xs text-rose-300">{errors.email}</p> : null}
         <input
           id="customer-phone"
           name="customerPhone"
@@ -59,8 +68,8 @@ export function CustomerSearchCard({
           placeholder="Phone"
           value={customer.phone}
           onChange={(e) => onCustomerChange("phone", e.target.value)}
-          required
         />
+        {errors?.phone ? <p className="text-xs text-rose-300">{errors.phone}</p> : null}
       </div>
     </section>
   );

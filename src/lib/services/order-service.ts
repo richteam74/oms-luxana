@@ -12,7 +12,8 @@ const normalizePhone = (phone: string) => phone.replace(/\s+/g, "").replace(/-/g
 
 type CreateOrderInput = {
   source: string;
-  customer: { name: string; email?: string; phone: string };
+  customerId?: string;
+  customer?: { name: string; email?: string; phone: string };
   address: { line1: string; line2?: string; postcode: string; city: string; state: string; country: string };
   paymentMethod: "cod" | "bank_transfer" | "foc";
   shippingMethod: "jnt" | "spx" | "self_pickup";
@@ -24,24 +25,32 @@ type CreateOrderInput = {
 };
 
 async function createOrder(payload: CreateOrderInput) {
-  const normalizedPhone = normalizePhone(payload.customer.phone);
+  const customer = payload.customerId
+    ? await prisma.customer.findUnique({ where: { id: payload.customerId } })
+    : null;
 
-  const customer = await prisma.customer.upsert({
-    where: { phone: normalizedPhone },
-    update: {
-      name: payload.customer.name.trim(),
-      email: payload.customer.email?.trim() || null,
-    },
-    create: {
-      name: payload.customer.name.trim(),
-      email: payload.customer.email?.trim() || null,
-      phone: normalizedPhone,
-    },
-  });
+  if (payload.customerId && !customer) {
+    throw new Error("Selected customer was not found.");
+  }
+
+  const resolvedCustomer =
+    customer ??
+    (await prisma.customer.upsert({
+      where: { phone: normalizePhone(payload.customer!.phone) },
+      update: {
+        name: payload.customer!.name.trim(),
+        email: payload.customer!.email?.trim() || null,
+      },
+      create: {
+        name: payload.customer!.name.trim(),
+        email: payload.customer!.email?.trim() || null,
+        phone: normalizePhone(payload.customer!.phone),
+      },
+    }));
 
   const matchingAddress = await prisma.address.findFirst({
     where: {
-      customerId: customer.id,
+      customerId: resolvedCustomer.id,
       line1: payload.address.line1.trim(),
       postcode: payload.address.postcode,
       city: payload.address.city.trim(),
@@ -54,7 +63,7 @@ async function createOrder(payload: CreateOrderInput) {
     matchingAddress ??
     (await prisma.address.create({
       data: {
-        customerId: customer.id,
+        customerId: resolvedCustomer.id,
         line1: payload.address.line1.trim(),
         line2: payload.address.line2?.trim() || null,
         postcode: payload.address.postcode.trim(),
@@ -128,7 +137,7 @@ async function createOrder(payload: CreateOrderInput) {
       data: {
         orderNo,
         source: payload.source,
-        customerId: customer.id,
+        customerId: resolvedCustomer.id,
         addressId: address.id,
         paymentMethod: payload.paymentMethod,
         shippingMethod: payload.shippingMethod,
