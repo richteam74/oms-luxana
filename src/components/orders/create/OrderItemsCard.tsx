@@ -11,6 +11,7 @@ type OrderItemsCardProps = {
   items: OrderItemRow[];
   onQtyChange: (productId: string, qty: number) => void;
   onRemoveItem: (productId: string) => void;
+  error?: string;
 };
 
 export function OrderItemsCard({
@@ -23,6 +24,7 @@ export function OrderItemsCard({
   items,
   onQtyChange,
   onRemoveItem,
+  error,
 }: OrderItemsCardProps) {
   return (
     <section className="panel p-4">
@@ -60,6 +62,7 @@ export function OrderItemsCard({
       </select>
 
       <div className="space-y-2">
+        {error ? <p className="text-xs text-rose-300">{error}</p> : null}
         {items.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-3 text-sm text-slate-400">No item selected yet.</p>
         ) : null}

@@ -38,6 +38,7 @@ export default function CreateOrderPage() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
   const [customer, setCustomer] = useState<CustomerForm>(defaultCustomer);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [address, setAddress] = useState<AddressForm>(defaultAddress);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -50,6 +51,7 @@ export default function CreateOrderPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [bundleMessage, setBundleMessage] = useState<string | null>(null);
   const [bulkFileName, setBulkFileName] = useState("");
   const [bulkError, setBulkError] = useState<string | null>(null);
@@ -61,16 +63,25 @@ export default function CreateOrderPage() {
   const normalizePhone = (value: string) => value.replace(/\s+/g, "").replace(/-/g, "");
 
   const validateBeforeSubmit = () => {
-    if (!customer.name.trim()) return "Customer name is required.";
-    if (normalizePhone(customer.phone).length < 9) return "Customer phone must be at least 9 digits.";
-    if (customer.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return "Customer email is invalid.";
-    if (!address.line1.trim()) return "Address line 1 is required.";
-    if (!address.postcode.trim()) return "Postcode is required.";
-    if (!address.city.trim()) return "City is required.";
-    if (!address.state.trim()) return "State is required.";
-    if (items.length < 1) return "Please add at least one product.";
-    if (items.some((item) => item.qty < 1)) return "Each item quantity must be at least 1.";
-    return null;
+    const nextErrors: Record<string, string> = {};
+    const hasExistingCustomer = Boolean(selectedCustomerId?.trim());
+
+    if (!hasExistingCustomer) {
+      if (!customer.name.trim()) nextErrors["customer.name"] = "Customer name is required.";
+      if (normalizePhone(customer.phone).length < 9) nextErrors["customer.phone"] = "Customer phone must be at least 9 digits.";
+      if (customer.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) {
+        nextErrors["customer.email"] = "Customer email is invalid.";
+      }
+    }
+    if (!address.line1.trim()) nextErrors["address.line1"] = "Address line 1 is required.";
+    if (!address.postcode.trim()) nextErrors["address.postcode"] = "Postcode is required.";
+    if (!address.city.trim()) nextErrors["address.city"] = "City is required.";
+    if (!address.state.trim()) nextErrors["address.state"] = "State is required.";
+    if (items.length < 1) nextErrors.items = "Please add at least one product.";
+    if (items.some((item) => item.qty < 1)) nextErrors.items = "Each item quantity must be at least 1.";
+
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   useEffect(() => {
@@ -138,6 +149,7 @@ export default function CreateOrderPage() {
       }
 
       if (!result.data) {
+        setSelectedCustomerId(null);
         setFormError("No matching customer found. You can continue with manual entry.");
         return;
       }
@@ -147,6 +159,7 @@ export default function CreateOrderPage() {
         email: result.data.email ?? "",
         phone: result.data.phone ?? "",
       });
+      setSelectedCustomerId(result.data.id ?? null);
 
       setAddress({
         line1: result.data.address?.line1 ?? "",
@@ -158,6 +171,7 @@ export default function CreateOrderPage() {
       });
       setFormSuccess("Customer found and prefilled.");
       setFormError(null);
+      setFieldErrors({});
     } catch {
       setFormError("Network error while searching customer.");
     } finally {
@@ -169,10 +183,11 @@ export default function CreateOrderPage() {
     event.preventDefault();
     setFormError(null);
     setFormSuccess(null);
+    setFieldErrors({});
 
-    const validationError = validateBeforeSubmit();
-    if (validationError) {
-      setFormError(validationError);
+    const isValid = validateBeforeSubmit();
+    if (!isValid) {
+      setFormError("Please fix the highlighted fields.");
       return;
     }
 
@@ -184,6 +199,7 @@ export default function CreateOrderPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           source: "admin",
+          customerId: selectedCustomerId ?? undefined,
           customer,
           address,
           paymentMethod,
@@ -203,13 +219,15 @@ export default function CreateOrderPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        const detailMessage =
-          result?.details && typeof result.details === "object"
-            ? Object.values(result.details as Record<string, string[]>)
-                .flat()
-                .find(Boolean)
-            : null;
-        setFormError(detailMessage ?? result.error ?? "Failed to create order.");
+        if (result?.details && typeof result.details === "object") {
+          const nextErrors: Record<string, string> = {};
+          for (const [field, messages] of Object.entries(result.details as Record<string, string[]>)) {
+            const message = messages.find(Boolean);
+            if (message) nextErrors[field] = message;
+          }
+          setFieldErrors(nextErrors);
+        }
+        setFormError(result.error ?? "Failed to create order.");
         return;
       }
 
@@ -256,9 +274,42 @@ export default function CreateOrderPage() {
                 onSearch={searchCustomer}
                 isSearching={isSearchingCustomer}
                 customer={customer}
-                onCustomerChange={(field, value) => setCustomer((prev) => ({ ...prev, [field]: value }))}
+                onCustomerChange={(field, value) => {
+                  setSelectedCustomerId(null);
+                  setCustomer((prev) => ({ ...prev, [field]: value }));
+                  setFieldErrors((prev) => {
+                    const next = { ...prev };
+                    delete next[`customer.${field}`];
+                    delete next.customerId;
+                    return next;
+                  });
+                }}
+                errors={{
+                  customerId: fieldErrors.customerId,
+                  name: fieldErrors["customer.name"],
+                  email: fieldErrors["customer.email"],
+                  phone: fieldErrors["customer.phone"],
+                }}
               />
-              <AddressFormCard address={address} onAddressChange={(field, value) => setAddress((prev) => ({ ...prev, [field]: value }))} />
+              <AddressFormCard
+                address={address}
+                onAddressChange={(field, value) => {
+                  setAddress((prev) => ({ ...prev, [field]: value }));
+                  setFieldErrors((prev) => {
+                    const next = { ...prev };
+                    delete next[`address.${field}`];
+                    return next;
+                  });
+                }}
+                errors={{
+                  line1: fieldErrors["address.line1"],
+                  line2: fieldErrors["address.line2"],
+                  postcode: fieldErrors["address.postcode"],
+                  city: fieldErrors["address.city"],
+                  state: fieldErrors["address.state"],
+                  country: fieldErrors["address.country"],
+                }}
+              />
             </div>
             <div className="space-y-4">
               <OrderItemsCard
@@ -271,6 +322,7 @@ export default function CreateOrderPage() {
                 items={items}
                 onQtyChange={(productId, qty) => setItems((prev) => prev.map((row) => (row.productId === productId ? { ...row, qty } : row)))}
                 onRemoveItem={(productId) => setItems((prev) => prev.filter((row) => row.productId !== productId))}
+                error={fieldErrors.items}
               />
 
               <section className="panel space-y-4 p-4">

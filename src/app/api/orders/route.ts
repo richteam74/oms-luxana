@@ -32,7 +32,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: order }, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      const fieldErrors = error.flatten().fieldErrors;
+      const fieldErrors = error.issues.reduce<Record<string, string[]>>((acc, issue) => {
+        const path = issue.path.length > 0 ? issue.path.join(".") : "form";
+        if (!acc[path]) acc[path] = [];
+        acc[path].push(issue.message);
+        return acc;
+      }, {});
       const firstFieldError = Object.values(fieldErrors).flat().find(Boolean);
       return NextResponse.json(
         {

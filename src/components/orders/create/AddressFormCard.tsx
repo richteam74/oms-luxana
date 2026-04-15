@@ -3,9 +3,10 @@ import { AddressForm } from "./types";
 type AddressFormCardProps = {
   address: AddressForm;
   onAddressChange: (field: keyof AddressForm, value: string) => void;
+  errors?: Partial<Record<keyof AddressForm, string>>;
 };
 
-export function AddressFormCard({ address, onAddressChange }: AddressFormCardProps) {
+export function AddressFormCard({ address, onAddressChange, errors }: AddressFormCardProps) {
   return (
     <section className="panel p-4">
       <h2 className="mb-3 text-sm font-semibold text-slate-100">Delivery address</h2>
@@ -19,6 +20,7 @@ export function AddressFormCard({ address, onAddressChange }: AddressFormCardPro
           onChange={(e) => onAddressChange("line1", e.target.value)}
           required
         />
+        {errors?.line1 ? <p className="text-xs text-rose-300">{errors.line1}</p> : null}
         <input
           id="address-line2"
           name="addressLine2"
@@ -37,6 +39,7 @@ export function AddressFormCard({ address, onAddressChange }: AddressFormCardPro
             onChange={(e) => onAddressChange("postcode", e.target.value)}
             required
           />
+          {errors?.postcode ? <p className="text-xs text-rose-300 sm:col-span-1">{errors.postcode}</p> : null}
           <input
             id="address-city"
             name="city"
@@ -46,6 +49,7 @@ export function AddressFormCard({ address, onAddressChange }: AddressFormCardPro
             onChange={(e) => onAddressChange("city", e.target.value)}
             required
           />
+          {errors?.city ? <p className="text-xs text-rose-300 sm:col-span-1">{errors.city}</p> : null}
           <input
             id="address-state"
             name="state"
@@ -55,6 +59,7 @@ export function AddressFormCard({ address, onAddressChange }: AddressFormCardPro
             onChange={(e) => onAddressChange("state", e.target.value)}
             required
           />
+          {errors?.state ? <p className="text-xs text-rose-300 sm:col-span-1">{errors.state}</p> : null}
         </div>
         <input
           id="address-country"
@@ -65,6 +70,7 @@ export function AddressFormCard({ address, onAddressChange }: AddressFormCardPro
           onChange={(e) => onAddressChange("country", e.target.value)}
           required
         />
+        {errors?.country ? <p className="text-xs text-rose-300">{errors.country}</p> : null}
       </div>
     </section>
   );

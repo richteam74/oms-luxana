@@ -39,6 +39,7 @@ const customerSchema = z.object({
     .or(z.literal("")),
   phone: z.string().trim().min(9, "Customer phone must be at least 9 characters."),
 });
+const manualCustomerSchema = customerSchema;
 
 const addressSchema = z.object({
   line1: z.string().trim().min(5, "Address line 1 must be at least 5 characters."),
@@ -72,8 +73,39 @@ export const publicOrderSchema = z.object({
 });
 
 export const adminCreateOrderSchema = publicOrderSchema.extend({
+  customerId: z.string().trim().min(1).optional().or(z.literal("")),
+  customer: z
+    .object({
+      name: z.string().trim().optional().or(z.literal("")),
+      email: z
+        .string()
+        .trim()
+        .email("Customer email is invalid.")
+        .optional()
+        .or(z.literal("")),
+      phone: z.string().trim().optional().or(z.literal("")),
+    })
+    .optional(),
   source: z.string().trim().default("admin"),
   privateNote: z.string().trim().optional().or(z.literal("")),
   awbNote: z.string().trim().optional().or(z.literal("")),
   sellingPrice: z.number().nonnegative().optional(),
+}).superRefine((data, ctx) => {
+  if (data.customerId && data.customerId.trim().length > 0) return;
+
+  const manualValidation = manualCustomerSchema.safeParse({
+    name: data.customer?.name ?? "",
+    email: data.customer?.email ?? "",
+    phone: data.customer?.phone ?? "",
+  });
+
+  if (!manualValidation.success) {
+    for (const issue of manualValidation.error.issues) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: issue.message,
+        path: ["customer", ...issue.path],
+      });
+    }
+  }
 });
