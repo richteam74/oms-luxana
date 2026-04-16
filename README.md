@@ -1,68 +1,45 @@
-# Luxana-style OMS (Next.js + Prisma)
+# RichApps
 
-Production-oriented full-stack Order Management System for Malaysian COD operations.
+RichApps is a premium dark-theme internal ecommerce operations command center for Malaysia.
 
 ## Stack
-- Next.js 15 (App Router) + TypeScript
-- PostgreSQL + Prisma ORM
-- NextAuth credential auth with role model (`super_admin`, `admin`, `staff`, `seller`)
-- Tailwind CSS dark navy admin theme
-- Recharts analytics, lucide-react ready
+- Next.js App Router + TypeScript + Tailwind
+- Prisma/PostgreSQL runtime layer (legacy) and Supabase SQL artifacts for migration
+- Zod validation and domain normalization helpers
+- Recharts and modular dashboard UI
 
-## Features Implemented
-- Admin shell with dark premium layout and sidebar navigation
-- Analytics dashboard cards + charts
-- Orders listing with status badges and seller/customer columns
-- Create order page (single + bulk CSV UX)
-- Shipment module pages and inventory module pages
-- Public checkout integration endpoint `POST /api/public/orders`
-- Duplicate prevention by phone + address + same day
-- Courier abstraction: `JntCourierProvider`, `SpxCourierProvider`, `MockCourierProvider`
-- AWB generation endpoint and shipment record updates
-- Courier webhooks with event-to-order-status mapping
-- Finance and commission reporting APIs
-- Prisma schema with required OMS entities
-- Malaysian realistic seed data
+## Deliverables Included
+1. Full Next.js folder structure (admin modules + docs + API v1 contracts)
+2. Complete Supabase schema SQL: `supabase/schema.sql`
+3. Seed SQL: `supabase/seed.sql`
+4. RLS policies: `supabase/rls.sql`
+5. Key domain types: `src/lib/domain/types.ts`
+6. Sidebar config: `src/config/sidebar.ts`
+7. Auth/protected layout foundation in `src/app/admin/layout.tsx` and middleware
+8. Main module pages for Dashboard, Orders, Shipping, Inventory, Reports, Finance, Users, Integrations, Settings
+9. Courier service contract via domain interface in `src/lib/domain/types.ts`
+10. Internal docs pages under `/admin/docs/*`
+11. API contracts under `/api/v1/*`
+12. Normalization helpers inspired by Luxana workflows in `src/lib/domain/normalization.ts`
 
-## Quick Start
-1. Copy env:
-   ```bash
-   cp .env.example .env
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Generate Prisma client and migrate:
-   ```bash
-   npm run prisma:generate
-   npm run prisma:migrate
-   ```
-4. Seed data:
-   ```bash
-   npm run prisma:seed
-   ```
-5. Run app:
-   ```bash
-   npm run dev
-   ```
+## API Contract Summary
+- `POST /api/v1/orders`
+- `GET /api/v1/orders`
+- `GET /api/v1/orders/:id`
+- `PUT /api/v1/orders/:id/status`
+- `GET /api/v1/products`
+- `GET /api/v1/couriers`
+- `POST /api/v1/courier/push`
+- `POST /api/v1/courier/generate-awb`
+- `GET /api/v1/health`
 
-## Default Seed Login
-- Email: `superadmin@luxana.my`
-- Password: `Admin@123`
-
-## Important API Endpoints
-- `POST /api/public/orders`
-- `GET /api/dashboard`
-- `GET /api/orders`
-- `GET /api/products`
-- `POST /api/shipments/generate-awb`
-- `POST /api/webhooks/courier/jnt`
-- `POST /api/webhooks/courier/spx`
-- `GET /api/finance`
-- `GET /api/commission`
+## Local Setup
+```bash
+npm install
+npm run dev
+```
 
 ## Notes
-- Providers are mock-friendly; swap internal implementations with live courier APIs.
-- Role filtering logic (seller restricted orders) should be applied in query layer based on session user role.
-- Labels are in English and can be moved to i18n dictionaries for customization.
+- Branding and metadata now use **RichApps**.
+- Integration scope is limited to Webhooks, Custom API, and Couriers.
+- No marketplace/storefront connector placeholders are included.
