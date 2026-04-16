@@ -1,0 +1,42 @@
+# RichApps Folder Structure
+
+```text
+src/
+  app/
+    admin/
+      dashboard/
+      orders/
+      shipping/
+      inventory/
+      reports/
+      finance/
+      users/
+      integrations/
+      docs/
+      roadmap/
+      schema/
+    api/
+      v1/
+        orders/
+        products/
+        couriers/
+        courier/
+        health/
+  components/
+    dashboard/
+    layout/
+    orders/
+    shared/
+  config/
+    sidebar.ts
+  lib/
+    domain/
+      normalization.ts
+      types.ts
+supabase/
+  schema.sql
+  rls.sql
+  seed.sql
+docs/
+  folder-structure.md
+```

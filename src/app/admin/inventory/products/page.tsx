@@ -1,3 +1,13 @@
+import { ModulePage } from "@/components/shared/module-page";
+
 export default function Page() {
-  return <div className="panel p-4"><h2 className="font-semibold capitalize">Inventory - products</h2><p className="text-sm text-slate-400 mt-2">Manage products for OMS inventory control.</p></div>;
+  return (
+    <ModulePage
+      title="Products"
+      description="Track product and variation stock, low stock risk, and SKU health."
+      cta={{ label: "Go to Dashboard", href: "/admin/dashboard" }}
+      emptyTitle="No products found"
+      emptyHint="Add your first product to start inventory control."
+    />
+  );
 }

@@ -1,3 +1,13 @@
+import { ModulePage } from "@/components/shared/module-page";
+
 export default function Page() {
-  return <div className="panel p-4"><h2 className="font-semibold capitalize">Inventory - stock adjustment</h2><p className="text-sm text-slate-400 mt-2">Manage stock adjustment for OMS inventory control.</p></div>;
+  return (
+    <ModulePage
+      title="Stock Adjustment"
+      description="Add or deduct stock with audit-ready reasons and notes."
+      cta={{ label: "Go to Dashboard", href: "/admin/dashboard" }}
+      emptyTitle="No adjustments yet"
+      emptyHint="Submit a stock adjustment to initialize log history."
+    />
+  );
 }
